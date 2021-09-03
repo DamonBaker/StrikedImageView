@@ -10,11 +10,6 @@
             android:viewportHeight="24">
 
             <path
-                android:name="strike_white"
-                android:pathData="M 4.54 1.73 L 2 4.27 L 19.73 22 L 22.27 19.46 Z"
-                android:fillColor="#FFFFFF"
-                android:strokeWidth="1" />
-            <path
                 android:name="strike_black"
                 android:pathData="M 2 4.27 L 3.27 3 L 21 20.73 L 19.73 22 Z"
                 android:fillColor="#000000"
@@ -36,21 +31,10 @@
                     android:duration="500"
                     android:interpolator="@android:interpolator/fast_out_slow_in"
                     android:propertyName="fillAlpha"
-                    android:valueFrom="0.33"
+                    android:valueFrom="0.38"
                     android:valueTo="1"
                     android:valueType="floatType" />
             </set>
-        </aapt:attr>
-    </target>
-    <target android:name="strike_white">
-        <aapt:attr name="android:animation">
-            <objectAnimator
-                android:propertyName="pathData"
-                android:duration="500"
-                android:valueFrom="M 4.54 1.73 L 2 4.27 L 19.73 22 L 22.27 19.46 Z"
-                android:valueTo="M 4.54 1.73 L 2 4.27 L 2 4.27 L 4.54 1.73 Z"
-                android:valueType="pathType"
-                android:interpolator="@android:interpolator/fast_out_slow_in"/>
         </aapt:attr>
     </target>
 </animated-vector>
