@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <declare-styleable name="StrikedImageView">
-        <attr name="strikeColor" format="color" />
+        <attr name="strikeBackgroundColor" format="color" />
         <attr name="strikeAlpha" format="float" />
+        <attr name="striked" format="boolean" />
     </declare-styleable>
 </resources>

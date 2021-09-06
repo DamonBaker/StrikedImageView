@@ -14,6 +14,7 @@ import android.os.Parcelable
 import android.util.AttributeSet
 import android.view.View
 import androidx.annotation.RequiresApi
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.widget.ImageViewCompat
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
@@ -31,6 +32,7 @@ class StrikedImageView @JvmOverloads constructor(
 ) : AppCompatImageView(context, attrs) {
 
     private var _isStriked: Boolean // Backing property
+
     var isStriked: Boolean
         get() = _isStriked
         set(value) {
@@ -47,20 +49,22 @@ class StrikedImageView @JvmOverloads constructor(
     val strikeDrawable: AnimatedVectorDrawable
         get() = drawable.asLayerDrawable().getDrawable(1).asLayerDrawable().getDrawable(1).asAnimatedVectorDrawable()
 
-    val strikeAnimateIn = context.getDrawable(R.drawable.strike_animate_in)
-    val strikeAnimateOut = context.getDrawable(R.drawable.strike_animate_out)
-    val maskAnimateIn = context.getDrawable(R.drawable.mask_animate_in)
-    val maskAnimateOut = context.getDrawable(R.drawable.mask_animate_out)
+    val strikeAnimateIn: LayerDrawable
+        get() = AppCompatResources.getDrawable(context, R.drawable.layer_strike_animate_in)?.mutate() as LayerDrawable
+
+    val strikeAnimateOut: LayerDrawable
+        get() = AppCompatResources.getDrawable(context, R.drawable.layer_strike_animate_out)?.mutate() as LayerDrawable
 
     init {
         context.theme.obtainStyledAttributes(attrs, R.styleable.StrikedImageView, 0, 0).apply {
             _isStriked = getBoolean(R.styleable.StrikedImageView_striked, false)
-            strikeWithoutAnimation(isStriked)
             recycle()
         }
+        // A tint is required on the ImageView so we can match the strike color, otherwise assume the icon is black
         if (imageTintList == null) {
             imageTintList = ColorStateList.valueOf(Color.BLACK)
         }
+        strikeWithoutAnimation(isStriked)
     }
 
     override fun setImageTintList(tint: ColorStateList?) {
@@ -87,25 +91,31 @@ class StrikedImageView @JvmOverloads constructor(
             interpolator = FastOutSlowInInterpolator()
             start()
         }
-
         strikeDrawable.start()
         strikeDrawableMask.start()
     }
 
+
     fun strikeWithoutAnimation(showStrike: Boolean) {
+        val strikeLayerDrawable = drawable.asLayerDrawable()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            strikeLayerDrawable.setDrawable(1, if (showStrike) strikeAnimateOut else strikeAnimateIn)
+        } else {
+            // Fallback for SDK < 23 which does not allow `setDrawable` to be called on a LayerDrawable
+            _isStriked = !showStrike
+            setImageDrawable(contentDrawable)
+        }
+
         _isStriked = showStrike
 
-        val strikeLayerDrawable = drawable.asLayerDrawable().getDrawable(1).asLayerDrawable()
-
         if (showStrike) {
-            strikeLayerDrawable.setDrawable(0, context.getDrawable(R.drawable.mask_animate_out))
-            strikeLayerDrawable.setDrawable(1, context.getDrawable(R.drawable.strike_animate_out))
             strikeDrawable.alpha = STRIKE_ALPHA
             contentDrawable.alpha = STRIKE_ALPHA
             refreshTint()
         } else {
-            strikeLayerDrawable.setDrawable(0, context.getDrawable(R.drawable.mask_animate_in))
-            strikeLayerDrawable.setDrawable(1, context.getDrawable(R.drawable.strike_animate_in))
+            strikeDrawable.alpha = 0
+            strikeDrawableMask.alpha = 0
             contentDrawable.alpha = 255
         }
     }
@@ -123,25 +133,19 @@ class StrikedImageView @JvmOverloads constructor(
 
     @RequiresApi(Build.VERSION_CODES.M)
     private fun setStrikeAnimation() {
-        val strikeLayerDrawable = drawable.asLayerDrawable().getDrawable(1).asLayerDrawable()
+        val strikeLayerDrawable = drawable.asLayerDrawable()
 
         if (isStriked) {
-            strikeLayerDrawable.setDrawable(0, context.getDrawable(R.drawable.mask_animate_in))
-            strikeLayerDrawable.setDrawable(1, context.getDrawable(R.drawable.strike_animate_in))
+            strikeLayerDrawable.setDrawable(1, strikeAnimateIn)
         } else {
-            strikeLayerDrawable.setDrawable(0, context.getDrawable(R.drawable.mask_animate_out))
-            strikeLayerDrawable.setDrawable(1, context.getDrawable(R.drawable.strike_animate_out))
+            strikeLayerDrawable.setDrawable(1, strikeAnimateOut)
         }
     }
 
     override fun setImageDrawable(drawable: Drawable?) {
-        val strikeDrawableOverlay = arrayOf(
-            context.getDrawable(if (isStriked) R.drawable.mask_animate_in else R.drawable.mask_animate_out)?.mutate(),
-            context.getDrawable(if (isStriked) R.drawable.strike_animate_in else R.drawable.strike_animate_out)?.mutate()
-        )
-        val strikeLayerDrawable = LayerDrawable(strikeDrawableOverlay)
+        val strikeAnimation = if (isStriked) strikeAnimateIn else strikeAnimateOut
 
-        super.setImageDrawable(LayerDrawable(arrayOf(drawable, strikeLayerDrawable)))
+        super.setImageDrawable(LayerDrawable(arrayOf(drawable, strikeAnimation)))
     }
 
     override fun onSaveInstanceState(): Parcelable = ViewState(super.onSaveInstanceState(), isStriked)
