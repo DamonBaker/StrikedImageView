@@ -3,7 +3,6 @@ package xyz.damonbaker.strikedimageview
 import android.animation.ObjectAnimator
 import android.content.Context
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.graphics.LightingColorFilter
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.ColorDrawable
@@ -23,7 +22,9 @@ import kotlinx.android.parcel.Parcelize
 @Parcelize
 private class ViewState(
     val superSavedState: Parcelable?,
-    val isStriked: Boolean
+    val isStriked: Boolean,
+    val strikeColor: Int?,
+    val strikeBackgroundColor: Int?
 ) : View.BaseSavedState(superSavedState), Parcelable
 
 class StrikedImageView @JvmOverloads constructor(
@@ -33,6 +34,9 @@ class StrikedImageView @JvmOverloads constructor(
 
     private var _isStriked: Boolean // Backing property
 
+    /**
+     * Animate and set the striked state of the view
+     */
     var isStriked: Boolean
         get() = _isStriked
         set(value) {
@@ -40,36 +44,88 @@ class StrikedImageView @JvmOverloads constructor(
             animateStrike()
         }
 
-    val contentDrawable: Drawable
+    /**
+     * Color of the lower half of the strike, recommended to be the same color as the icon tint
+     * Optional as the icon tint can be inferred automatically
+     */
+    var strikeColor: Int? = null
+        set(value) {
+            refreshTint()
+            field = value
+        }
+
+    /**
+     * Color of the top half of the strike, recommended to be the same color as the parent background
+     * Optional as the parent background color will attempt to be inferred automatically
+     */
+    var strikeBackgroundColor: Int? = null
+        set(value) {
+            refreshTint()
+            isEnabled
+            field = value
+        }
+
+    /**
+     * Returns the user-defined drawable that the strike draws over
+     */
+    val contentDrawable: Drawable?
         get() = drawable.asLayerDrawable().getDrawable(0)
 
-    val strikeDrawableMask: AnimatedVectorDrawable
+    private val strikeDrawableMask: AnimatedVectorDrawable
         get() = drawable.asLayerDrawable().getDrawable(1).asLayerDrawable().getDrawable(0).asAnimatedVectorDrawable()
 
-    val strikeDrawable: AnimatedVectorDrawable
+    private val strikeDrawable: AnimatedVectorDrawable
         get() = drawable.asLayerDrawable().getDrawable(1).asLayerDrawable().getDrawable(1).asAnimatedVectorDrawable()
 
-    val strikeAnimateIn: LayerDrawable
+    private val strikeAnimateIn: LayerDrawable
         get() = AppCompatResources.getDrawable(context, R.drawable.layer_strike_animate_in)?.mutate() as LayerDrawable
 
-    val strikeAnimateOut: LayerDrawable
+    private val strikeAnimateOut: LayerDrawable
         get() = AppCompatResources.getDrawable(context, R.drawable.layer_strike_animate_out)?.mutate() as LayerDrawable
 
     init {
         context.theme.obtainStyledAttributes(attrs, R.styleable.StrikedImageView, 0, 0).apply {
             _isStriked = getBoolean(R.styleable.StrikedImageView_striked, false)
+            if (hasValue(R.styleable.StrikedImageView_strikeBackgroundColor)) {
+                strikeBackgroundColor = getInt(R.styleable.StrikedImageView_strikeBackgroundColor, 0)
+            }
+            if (hasValue(R.styleable.StrikedImageView_strikeColor)) {
+                strikeColor = getInt(R.styleable.StrikedImageView_strikeColor, 0)
+            }
             recycle()
         }
         // A tint is required on the ImageView so we can match the strike color, otherwise assume the icon is black
-        if (imageTintList == null) {
-            imageTintList = ColorStateList.valueOf(Color.BLACK)
-        }
+//        if (imageTintList == null) {
+//            imageTintList = ColorStateList.valueOf(Color.BLACK)
+//        }
         strikeWithoutAnimation(isStriked)
     }
 
-    override fun setImageTintList(tint: ColorStateList?) {
-        super.setImageTintList(tint)
-        refreshTint()
+    /**
+     * Set the striked state without the transition animation
+     */
+    fun strikeWithoutAnimation(showStrike: Boolean) {
+        val strikeLayerDrawable = drawable.asLayerDrawable()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            strikeLayerDrawable.setDrawable(1, if (showStrike) strikeAnimateOut else strikeAnimateIn)
+        } else {
+            // Fallback for SDK < 23 which does not allow `setDrawable` to be called on a LayerDrawable
+            _isStriked = !showStrike
+            setImageDrawable(contentDrawable)
+        }
+
+        _isStriked = showStrike
+
+        if (showStrike) {
+            strikeDrawable.alpha = STRIKE_ALPHA
+            contentDrawable?.alpha = STRIKE_ALPHA
+            refreshTint()
+        } else {
+            strikeDrawable.alpha = 0
+            strikeDrawableMask.alpha = 0
+            contentDrawable?.alpha = 255
+        }
     }
 
     private fun animateStrike() {
@@ -95,40 +151,15 @@ class StrikedImageView @JvmOverloads constructor(
         strikeDrawableMask.start()
     }
 
-
-    fun strikeWithoutAnimation(showStrike: Boolean) {
-        val strikeLayerDrawable = drawable.asLayerDrawable()
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            strikeLayerDrawable.setDrawable(1, if (showStrike) strikeAnimateOut else strikeAnimateIn)
-        } else {
-            // Fallback for SDK < 23 which does not allow `setDrawable` to be called on a LayerDrawable
-            _isStriked = !showStrike
-            setImageDrawable(contentDrawable)
-        }
-
-        _isStriked = showStrike
-
-        if (showStrike) {
-            strikeDrawable.alpha = STRIKE_ALPHA
-            contentDrawable.alpha = STRIKE_ALPHA
-            refreshTint()
-        } else {
-            strikeDrawable.alpha = 0
-            strikeDrawableMask.alpha = 0
-            contentDrawable.alpha = 255
-        }
-    }
-
     private fun refreshTint() {
         val white = 0xFFFFFFFF.toInt()
-        val parentBackground = getBackgroundColor() ?: white
-        val tintColor = ImageViewCompat.getImageTintList(this)?.defaultColor ?: white
+        val black = 0xFF000000.toInt()
+        // If parent view background color cannot be found and no background color is specified, default to white
+        val parentBackground = strikeBackgroundColor ?: getBackgroundColor() ?: white
+        val tintColor = strikeColor ?: ImageViewCompat.getImageTintList(this)?.defaultColor ?: black
 
         strikeDrawableMask.setTint(parentBackground)
         strikeDrawable.colorFilter = LightingColorFilter(white - tintColor, tintColor)
-
-        drawable?.invalidateSelf()
     }
 
     @RequiresApi(Build.VERSION_CODES.M)
@@ -146,15 +177,26 @@ class StrikedImageView @JvmOverloads constructor(
         val strikeAnimation = if (isStriked) strikeAnimateIn else strikeAnimateOut
 
         super.setImageDrawable(LayerDrawable(arrayOf(drawable, strikeAnimation)))
+
+        refreshTint()
     }
 
-    override fun onSaveInstanceState(): Parcelable = ViewState(super.onSaveInstanceState(), isStriked)
+    override fun setImageTintList(tint: ColorStateList?) {
+        super.setImageTintList(tint)
+        refreshTint()
+    }
+
+    override fun onSaveInstanceState(): Parcelable {
+        return ViewState(super.onSaveInstanceState(), isStriked, strikeColor, strikeBackgroundColor)
+    }
 
     override fun onRestoreInstanceState(state: Parcelable) {
         when (state) {
             is ViewState -> {
                 super.onRestoreInstanceState(state.superSavedState)
                 isStriked = state.isStriked
+                strikeColor = state.strikeColor
+                strikeBackgroundColor = state.strikeBackgroundColor
             }
             else -> super.onRestoreInstanceState(state)
         }
