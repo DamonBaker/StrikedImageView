@@ -94,10 +94,7 @@ class StrikedImageView @JvmOverloads constructor(
             }
             recycle()
         }
-        // A tint is required on the ImageView so we can match the strike color, otherwise assume the icon is black
-//        if (imageTintList == null) {
-//            imageTintList = ColorStateList.valueOf(Color.BLACK)
-//        }
+
         strikeWithoutAnimation(isStriked)
     }
 
