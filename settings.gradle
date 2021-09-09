@@ -1,3 +1,2 @@
 rootProject.name='StrikedImageView'
-include ':app'
 include ':strikedimageview'
